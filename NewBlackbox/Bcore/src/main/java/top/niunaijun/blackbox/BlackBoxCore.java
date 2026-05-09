@@ -71,7 +71,11 @@ import top.niunaijun.blackbox.utils.StoragePermissionHelper;
 import top.niunaijun.blackbox.utils.LogSender;
 // ===== NAYA IMPORT =====
 import top.niunaijun.blackbox.game.GameProtectionManager;
-// =====================
+// ===== NAYA IMPORTS =====
+import top.niunaijun.blackbox.game.GameDataManager;
+import top.niunaijun.blackbox.security.SdkProtectionManager;
+import top.niunaijun.blackbox.security.GameIntegrityGuard;
+// ========================
 
 @SuppressLint({"StaticFieldLeak", "NewApi"})
 @SuppressWarnings({"unchecked", "deprecation"})
@@ -1021,6 +1025,15 @@ public class BlackBoxCore extends ClientConfiguration {
         
         installSystemHooks();
         
+        // ===== SDK PROTECTION INIT =====
+        try {
+            SdkProtectionManager.getInstance().initialize(sContext);
+            SdkProtectionManager.getInstance().setEnabled(true);
+            Slog.i(TAG, "SDK Protection initialized and enabled");
+        } catch (Exception e) {
+            Slog.w(TAG, "SDK Protection init failed: " + e.getMessage());
+        }
+        // ================================
         
         long startTime = System.currentTimeMillis();
         long maxInitTime = 10000; 
@@ -1153,6 +1166,13 @@ public class BlackBoxCore extends ClientConfiguration {
     public boolean launchApk(String packageName, int userId) {
         onBeforeMainLaunchApk(packageName, userId);
         
+        // ===== SDK PROTECTION FOR GAMES =====
+        if (GameProtectionManager.getInstance().isGame(packageName)) {
+            SdkProtectionManager.getInstance().onGameLaunch(packageName);
+            GameIntegrityGuard.getInstance().startMonitoring(packageName);
+            Slog.i(TAG, "SDK Protection activated for game: " + packageName);
+        }
+        // =====================================
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!hasAllFilesAccess()) {
@@ -1219,7 +1239,41 @@ public class BlackBoxCore extends ClientConfiguration {
             Slog.w(TAG, "Could not verify package info for APK: " + apk.getAbsolutePath());
         }
         
-        return getBPackageManager().installPackageAsUser(apk.getAbsolutePath(), InstallOption.installByStorage(), userId);
+        InstallResult result = getBPackageManager().installPackageAsUser(apk.getAbsolutePath(), InstallOption.installByStorage(), userId);
+        
+        // ===== GAME DATA AUTO-COPY =====
+        if (result != null && result.success) {
+            try {
+                String installedPackage = result.packageName;
+                if (installedPackage != null && GameProtectionManager.getInstance().isGame(installedPackage)) {
+                    GameDataManager.getInstance().autoCopyGameData(installedPackage, new GameDataManager.GameDataCallback() {
+                        @Override
+                        public void onDataCopyStarted(String pkg) {
+                            Slog.i(TAG, "Starting game data copy for: " + pkg);
+                        }
+
+                        @Override
+                        public void onDataCopyProgress(String pkg, int progress) {
+                            Slog.d(TAG, "Game data copy progress: " + progress + "%");
+                        }
+
+                        @Override
+                        public void onDataCopyComplete(String pkg, boolean success, String message) {
+                            if (success) {
+                                Slog.i(TAG, "Game data copied: " + message);
+                            } else {
+                                Slog.w(TAG, "Game data copy failed: " + message);
+                            }
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Slog.w(TAG, "Auto game data copy failed: " + e.getMessage());
+            }
+        }
+        // ================================
+
+        return result;
     }
 
     public InstallResult installPackageAsUser(Uri apk, int userId) {
