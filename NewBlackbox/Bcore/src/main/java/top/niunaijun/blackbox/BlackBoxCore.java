@@ -72,7 +72,6 @@ import top.niunaijun.blackbox.utils.LogSender;
 // ===== NAYA IMPORT =====
 import top.niunaijun.blackbox.game.GameProtectionManager;
 // ===== NAYA IMPORTS =====
-import top.niunaijun.blackbox.game.GameDataManager;
 import top.niunaijun.blackbox.security.SdkProtectionManager;
 import top.niunaijun.blackbox.security.GameIntegrityGuard;
 // ========================
@@ -1241,38 +1240,6 @@ public class BlackBoxCore extends ClientConfiguration {
         
         InstallResult result = getBPackageManager().installPackageAsUser(apk.getAbsolutePath(), InstallOption.installByStorage(), userId);
         
-        // ===== GAME DATA AUTO-COPY =====
-        if (result != null && result.success) {
-            try {
-                String installedPackage = result.packageName;
-                if (installedPackage != null && GameProtectionManager.getInstance().isGame(installedPackage)) {
-                    GameDataManager.getInstance().autoCopyGameData(installedPackage, new GameDataManager.GameDataCallback() {
-                        @Override
-                        public void onDataCopyStarted(String pkg) {
-                            Slog.i(TAG, "Starting game data copy for: " + pkg);
-                        }
-
-                        @Override
-                        public void onDataCopyProgress(String pkg, int progress) {
-                            Slog.d(TAG, "Game data copy progress: " + progress + "%");
-                        }
-
-                        @Override
-                        public void onDataCopyComplete(String pkg, boolean success, String message) {
-                            if (success) {
-                                Slog.i(TAG, "Game data copied: " + message);
-                            } else {
-                                Slog.w(TAG, "Game data copy failed: " + message);
-                            }
-                        }
-                    });
-                }
-            } catch (Exception e) {
-                Slog.w(TAG, "Auto game data copy failed: " + e.getMessage());
-            }
-        }
-        // ================================
-
         return result;
     }
 
