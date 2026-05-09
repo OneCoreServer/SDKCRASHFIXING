@@ -79,6 +79,8 @@ public class BoxApplication extends Application {
     public void onCreate() {
         super.onCreate();
         gApp = this;
+        FLog.init(this);
+        FLog.info("BoxApplication onCreate");
         BlackBoxCore.get().doCreate();
         BlackBoxCore.get().addAppLifecycleCallback(new VirtualNativeLoaderCallback());
         DynamicColors.applyToActivitiesIfAvailable(this);

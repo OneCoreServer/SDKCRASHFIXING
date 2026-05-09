@@ -91,6 +91,7 @@ public class MainActivity extends Activity {
         sharedPreferences = getSharedPreferences(getPackageName(), Activity.MODE_PRIVATE);
         prefs = new Prefs(this);
         CheckFloatViewPermission();
+        FLog.info("MainActivity created. Log file path: " + FLog.getLogFilePath());
         
         rootView = findViewById(R.id.main_root);
 
@@ -399,10 +400,37 @@ public class MainActivity extends Activity {
     }
     
     @Override
-    public void onDestroy() {
-        super.onDestroy();
+    protected void onStop() {
+        super.onStop();
+        FLog.info("MainActivity onStop. isFinishing=" + isFinishing());
+    }
+
+    @Override
+    protected void onDestroy() {
+        FLog.warning("MainActivity onDestroy called. Stopping overlays and forcing loader stop. Log file: " + FLog.getLogFilePath());
         stopService(new Intent(MainActivity.get(), FloatLogo.class));
         stopService(new Intent(MainActivity.get(), Overlay.class));
         stopService(new Intent(MainActivity.get(), FloatAim.class));
+        if (isFinishing()) {
+            forceStopLoaderProcess();
+        } else {
+            FLog.info("onDestroy skipped force-stop because activity is not finishing.");
+        }
+        super.onDestroy();
     }
+
+
+    private void forceStopLoaderProcess() {
+        try {
+            String pkg = getPackageName();
+            FLog.info("Force-stop command start for package: " + pkg);
+            BoxApplication.doExe("am force-stop " + pkg);
+            finishAndRemoveTask();
+            android.os.Process.killProcess(android.os.Process.myPid());
+            System.exit(0);
+        } catch (Exception e) {
+            FLog.error("Force-stop failed: " + e.getMessage());
+        }
+    }
+
 }
