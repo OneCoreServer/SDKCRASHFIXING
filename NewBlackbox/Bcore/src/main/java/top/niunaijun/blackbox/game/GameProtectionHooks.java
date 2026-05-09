@@ -1,6 +1,4 @@
-
-# Create GameProtectionHooks.java
-game_protection_hooks = '''package top.niunaijun.blackbox.game;
+package top.niunaijun.blackbox.game;
 
 import android.app.ActivityManager;
 import android.content.Context;
@@ -324,10 +322,3 @@ public class GameProtectionHooks {
         return false;
     }
 }
-'''
-
-with open('/mnt/agents/output/GameProtectionHooks.java', 'w', encoding='utf-8') as f:
-    f.write(game_protection_hooks)
-
-print("✅ GameProtectionHooks.java created successfully!")
-print(f"File size: {len(game_protection_hooks)} characters")

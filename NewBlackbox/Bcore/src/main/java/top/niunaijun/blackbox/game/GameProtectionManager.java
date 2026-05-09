@@ -1,6 +1,4 @@
-
-# Create GameProtectionManager.java
-game_protection_manager = '''package top.niunaijun.blackbox.game;
+package top.niunaijun.blackbox.game;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
@@ -8,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -380,10 +379,3 @@ public class GameProtectionManager {
         Slog.d(TAG, "Saving protected games to storage...");
     }
 }
-'''
-
-with open('/mnt/agents/output/GameProtectionManager.java', 'w', encoding='utf-8') as f:
-    f.write(game_protection_manager)
-
-print("✅ GameProtectionManager.java created successfully!")
-print(f"File size: {len(game_protection_manager)} characters")
