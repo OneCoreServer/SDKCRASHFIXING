@@ -1,6 +1,4 @@
-
-# Create GameIntegrityGuard.java - Game-specific protection
-game_integrity_guard = '''package top.niunaijun.blackbox.security;
+package top.niunaijun.blackbox.security;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
@@ -330,10 +328,3 @@ public class GameIntegrityGuard {
                lower.contains("hook");
     }
 }
-'''
-
-with open('/mnt/agents/output/GameIntegrityGuard.java', 'w', encoding='utf-8') as f:
-    f.write(game_integrity_guard)
-
-print("✅ GameIntegrityGuard.java created!")
-print(f"Size: {len(game_integrity_guard)} chars")

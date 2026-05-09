@@ -1,6 +1,4 @@
-
-# Create SdkProtectionManager.java (renamed from AntiCheatBypass)
-sdk_protection_manager = '''package top.niunaijun.blackbox.security;
+package top.niunaijun.blackbox.security;
 
 import android.content.Context;
 import android.os.Build;
@@ -121,7 +119,7 @@ public class SdkProtectionManager {
             
             Slog.i(TAG, "SDK protection measures applied successfully");
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Slog.e(TAG, "Error applying SDK protection: " + e.getMessage());
         }
     }
@@ -153,14 +151,14 @@ public class SdkProtectionManager {
                     Field field = Build.class.getDeclaredField(entry.getKey());
                     field.setAccessible(true);
                     field.set(null, entry.getValue());
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     Slog.w(TAG, "Failed to normalize " + entry.getKey());
                 }
             }
             
             Slog.d(TAG, "Device fingerprint normalized");
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Slog.e(TAG, "Error normalizing fingerprint: " + e.getMessage());
         }
     }
@@ -181,7 +179,7 @@ public class SdkProtectionManager {
             // Ensure process name doesn't contain container signatures
             // This is handled by BlackBox internals
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Slog.e(TAG, "Error sanitizing process info: " + e.getMessage());
         }
     }
@@ -197,7 +195,7 @@ public class SdkProtectionManager {
             // This allows us to monitor and mediate security SDK initialization
             mediateLibraryLoadingNative();
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Slog.e(TAG, "Error mediating library loading: " + e.getMessage());
         }
     }
@@ -213,7 +211,7 @@ public class SdkProtectionManager {
             // We ensure our handlers don't conflict
             ensureSignalCompatibilityNative();
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Slog.e(TAG, "Error ensuring signal compatibility: " + e.getMessage());
         }
     }
@@ -228,7 +226,7 @@ public class SdkProtectionManager {
             // Hook file system calls to redirect container paths
             virtualizePathsNative();
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Slog.e(TAG, "Error virtualizing paths: " + e.getMessage());
         }
     }
@@ -331,7 +329,7 @@ public class SdkProtectionManager {
                 // Specific adjustments for Activision games
             }
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Slog.w(TAG, "Error applying game-specific protection: " + e.getMessage());
         }
     }
@@ -343,16 +341,9 @@ public class SdkProtectionManager {
     
     static {
         try {
-            System.loadLibrary("sdk_protection");
-        } catch (Exception e) {
+            System.loadLibrary("blackbox");
+        } catch (Throwable e) {
             Slog.w(TAG, "Failed to load SDK protection native library: " + e.getMessage());
         }
     }
 }
-'''
-
-with open('/mnt/agents/output/SdkProtectionManager.java', 'w', encoding='utf-8') as f:
-    f.write(sdk_protection_manager)
-
-print("✅ SdkProtectionManager.java created!")
-print(f"Size: {len(sdk_protection_manager)} chars")
