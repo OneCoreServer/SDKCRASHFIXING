@@ -91,6 +91,7 @@ public class MainActivity extends Activity {
         sharedPreferences = getSharedPreferences(getPackageName(), Activity.MODE_PRIVATE);
         prefs = new Prefs(this);
         CheckFloatViewPermission();
+        FLog.info("MainActivity created. Log file path: " + FLog.getLogFilePath());
         
         rootView = findViewById(R.id.main_root);
 

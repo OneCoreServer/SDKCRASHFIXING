@@ -22,10 +22,18 @@ public class FLog {
         synchronized (LOCK) {
             if (logFile != null) return;
             File dir = new File(context.getFilesDir(), "logs");
-            if (!dir.exists()) {
-                dir.mkdirs();
+            if (!dir.exists() && !dir.mkdirs()) {
+                Log.e(TAG, "Failed to create log dir: " + dir.getAbsolutePath());
+                return;
             }
             logFile = new File(dir, "loader-debug.log");
+            try {
+                if (!logFile.exists()) {
+                    logFile.createNewFile();
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to create log file: " + e.getMessage());
+            }
             writeToFile("INFO", "FLog initialized. Log path: " + logFile.getAbsolutePath());
         }
     }
@@ -35,34 +43,30 @@ public class FLog {
     }
 
     public static void debug(String msg) {
-        if (!BuildConfig.DEBUG) {
-            return;
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, msg);
         }
-        Log.d(TAG, msg);
         writeToFile("DEBUG", msg);
     }
 
     public static void info(String msg) {
-        if (!BuildConfig.DEBUG) {
-            return;
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, msg);
         }
-        Log.i(TAG, msg);
         writeToFile("INFO", msg);
     }
 
     public static void warning(String msg) {
-        if (!BuildConfig.DEBUG) {
-            return;
+        if (BuildConfig.DEBUG) {
+            Log.w(TAG, msg);
         }
-        Log.w(TAG, msg);
         writeToFile("WARN", msg);
     }
 
     public static void error(String msg) {
-        if (!BuildConfig.DEBUG) {
-            return;
+        if (BuildConfig.DEBUG) {
+            Log.e(TAG, msg);
         }
-        Log.e(TAG, msg);
         writeToFile("ERROR", msg);
     }
 
@@ -73,7 +77,9 @@ public class FLog {
             String line = ts + " [" + level + "] " + msg + "\n";
             try (FileWriter fw = new FileWriter(logFile, true)) {
                 fw.write(line);
-            } catch (IOException ignored) {
+                fw.flush();
+            } catch (IOException e) {
+                Log.e(TAG, "Log write failed: " + e.getMessage());
             }
         }
     }
