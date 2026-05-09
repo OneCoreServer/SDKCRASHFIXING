@@ -75,7 +75,3 @@ Java_top_niunaijun_blackbox_security_SdkProtectionManager_virtualizePathsNative(
     LOGD("Virtualizing paths...");
 }
 
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*) {
-    LOGD("NativeSdkProtection loaded");
-    return JNI_VERSION_1_6;
-}
