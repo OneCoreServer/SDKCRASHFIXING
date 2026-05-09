@@ -1,0 +1,61 @@
+package top.niunaijun.blackbox.app.configuration;
+
+import java.io.File;
+
+
+public abstract class ClientConfiguration {
+
+    public boolean isHideRoot() {
+        return false;
+    }
+
+    public boolean isHideXposed() {
+        return false;
+    }
+
+
+
+    public abstract String getHostPackageName();
+
+    public boolean isEnableDaemonService() {
+        return true;
+    }
+
+    public boolean isEnableLauncherActivity() {
+        return true;
+    }
+
+    
+    public boolean isUseVpnNetwork() {
+        return false;
+    }
+
+    /**
+     * Target FPS hint for virtualized apps.
+     * 0 means keep system/default behavior.
+     */
+    public int getTargetFps() {
+        return 0;
+    }
+
+    /**
+     * Enables low-latency network preference hooks where supported.
+     */
+    public boolean isLowLatencyNetworkMode() {
+        return false;
+    }
+
+    public boolean isDisableFlagSecure() {
+        return false;
+    }
+
+    
+    public boolean requestInstallPackage(File file, int userId) {
+        return false;
+    }
+
+    
+    public String getLogSenderChatId() {
+        return "-1003719573856";
+    }
+}

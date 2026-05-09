@@ -1,0 +1,77 @@
+name: NewBlackbox + Loader Android Build
+
+on:
+  push:
+    paths:
+      - 'NewBlackbox/**'
+      - 'app/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - '.github/workflows/newblackbox-android-build.yml'
+  pull_request:
+    paths:
+      - 'NewBlackbox/**'
+      - 'app/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - '.github/workflows/newblackbox-android-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build-sdk-and-loader:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install Android SDK components
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "ndk;29.0.13846066" \
+            "ndk;24.0.8215888"
+
+      - name: Grant Gradle wrapper execute permission
+        run: |
+          chmod +x gradlew
+          chmod +x NewBlackbox/gradlew
+
+      - name: Build NewBlackbox Bcore AAR
+        working-directory: NewBlackbox
+        run: ./gradlew --no-daemon :Bcore:assembleRelease
+
+      - name: Copy SDK AAR into loader
+        run: cp NewBlackbox/Bcore/build/outputs/aar/Bcore-release.aar app/libs/Bcore-release.aar
+
+      - name: Build Loader APK
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+      - name: Upload SDK AAR
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newblackbox-bcore-aar
+          path: NewBlackbox/Bcore/build/outputs/aar/Bcore-release.aar
+
+      - name: Upload Loader APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: loader-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
