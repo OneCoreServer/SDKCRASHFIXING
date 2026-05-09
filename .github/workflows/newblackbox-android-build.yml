@@ -52,15 +52,18 @@ jobs:
           chmod +x gradlew
           chmod +x NewBlackbox/gradlew
 
-      - name: Build NewBlackbox Bcore AAR
+      - name: Build fresh NewBlackbox Bcore AAR
         working-directory: NewBlackbox
-        run: ./gradlew --no-daemon :Bcore:assembleRelease
+        run: ./gradlew --no-daemon clean :Bcore:assembleRelease
 
-      - name: Copy SDK AAR into loader
-        run: cp NewBlackbox/Bcore/build/outputs/aar/Bcore-release.aar app/libs/Bcore-release.aar
+      - name: Replace loader AAR with freshly built SDK
+        run: |
+          rm -f app/libs/Bcore-release.aar
+          cp NewBlackbox/Bcore/build/outputs/aar/Bcore-release.aar app/libs/Bcore-release.aar
+          ls -lh app/libs/Bcore-release.aar
 
-      - name: Build Loader APK
-        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Build loader with fresh SDK AAR
+        run: ./gradlew --no-daemon clean :app:assembleDebug
 
       - name: Upload SDK AAR
         if: always()
