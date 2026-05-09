@@ -7,6 +7,7 @@ import android.util.Log;
 import androidx.annotation.Keep;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.List;
 
 import dalvik.system.DexFile;
@@ -37,6 +38,28 @@ public class NativeCore {
     public static native boolean disableHiddenApi();
     
     public static native boolean disableResourceLoading();
+
+    public static boolean disableHiddenApiWithFallback() {
+        try {
+            if (disableHiddenApi()) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            Class<?> vmRuntimeClass = Class.forName("dalvik.system.VMRuntime");
+            Method getRuntime = vmRuntimeClass.getDeclaredMethod("getRuntime");
+            Object runtime = getRuntime.invoke(null);
+            Method setHiddenApiExemptions = vmRuntimeClass.getDeclaredMethod("setHiddenApiExemptions", String[].class);
+            setHiddenApiExemptions.setAccessible(true);
+            setHiddenApiExemptions.invoke(runtime, (Object) new String[]{"L"});
+            Slog.d(TAG, "Hidden API exemptions enabled with Java fallback");
+            return true;
+        } catch (Throwable e) {
+            Slog.w(TAG, "Hidden API fallback failed: " + e.getMessage());
+            return false;
+        }
+    }
 
 
     @Keep

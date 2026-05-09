@@ -169,17 +169,20 @@ public class ApkEnv {
             FLog.error("System.load failed for loader so: " + err.getMessage());
         }
 
-        File loaderDest = new File(applicationInfo.nativeLibraryDir, packageName.equals("com.miraclegames.farlight84") ? "libfarlight.so" : "libAkAudioVisiual.so");
-
-        if (loaderDest.exists()) loaderDest.delete();
+        File loaderDir = new File(BoxApplication.get().getFilesDir(), "loader");
+        if (!loaderDir.exists() && !loaderDir.mkdirs()) {
+            FLog.error("Unable to create app-private loader directory: " + loaderDir.getAbsolutePath());
+        }
+        File loaderDest = new File(loaderDir, packageName.equals("com.miraclegames.farlight84") ? "libfarlight.so" : "libAkAudioVisiual.so");
         try {
-            if (FileUtils.copy(loader.toString(), loaderDest.toString())) {
-                return true;
+            if (!loaderDest.exists()) {
+                FileUtils.copy(loader.toString(), loaderDest.toString());
             }
-            FLog.error("Loader copy to target nativeLibraryDir returned false, continuing with SDK loader path");
+            System.load(loaderDest.getAbsolutePath());
+            FLog.info("Loaded loader from app-private dir: " + loaderDest.getAbsolutePath());
             return true;
         } catch(Exception err) {
-            FLog.error("Loader copy to target nativeLibraryDir failed: " + err.getMessage() + ", continuing with SDK loader path");
+            FLog.error("Loader copy/load in app-private dir failed: " + err.getMessage() + ", continuing without hard failure");
             return true;
         }
     }
@@ -268,5 +271,4 @@ public class ApkEnv {
     }
 
 }
-
 
