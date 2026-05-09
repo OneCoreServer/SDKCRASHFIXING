@@ -1,6 +1,4 @@
-
-# Create SdkProtectionManager.java (renamed from AntiCheatBypass)
-sdk_protection_manager = '''package top.niunaijun.blackbox.security;
+package top.niunaijun.blackbox.security;
 
 import android.content.Context;
 import android.os.Build;
@@ -349,10 +347,3 @@ public class SdkProtectionManager {
         }
     }
 }
-'''
-
-with open('/mnt/agents/output/SdkProtectionManager.java', 'w', encoding='utf-8') as f:
-    f.write(sdk_protection_manager)
-
-print("✅ SdkProtectionManager.java created!")
-print(f"Size: {len(sdk_protection_manager)} chars")
