@@ -71,6 +71,8 @@ import top.niunaijun.blackbox.utils.StoragePermissionHelper;
 import top.niunaijun.blackbox.utils.LogSender;
 // ===== NAYA IMPORT =====
 import top.niunaijun.blackbox.game.GameProtectionManager;
+import top.niunaijun.blackbox.security.SdkProtectionManager;
+import top.niunaijun.blackbox.security.GameIntegrityGuard;
 // =====================
 
 @SuppressLint({"StaticFieldLeak", "NewApi"})
@@ -1024,6 +1026,15 @@ public class BlackBoxCore extends ClientConfiguration {
         
         long startTime = System.currentTimeMillis();
         long maxInitTime = 10000; 
+
+        // ===== SDK PROTECTION INIT =====
+        try {
+            SdkProtectionManager.getInstance().initialize(sContext);
+            Slog.i(TAG, "SDK Protection initialized");
+        } catch (Exception e) {
+            Slog.w(TAG, "SDK Protection init failed: " + e.getMessage());
+        }
+        // ================================
         
         try {
             
@@ -1152,6 +1163,13 @@ public class BlackBoxCore extends ClientConfiguration {
 
     public boolean launchApk(String packageName, int userId) {
         onBeforeMainLaunchApk(packageName, userId);
+
+        // ===== SDK PROTECTION FOR GAMES =====
+        if (GameProtectionManager.getInstance().isGame(packageName)) {
+            SdkProtectionManager.getInstance().onGameLaunch(packageName);
+            GameIntegrityGuard.getInstance().startMonitoring(packageName);
+        }
+        // =====================================
         
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

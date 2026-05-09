@@ -7,6 +7,7 @@ import java.util.Map;
 
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.fake.delegate.AppInstrumentation;
+import top.niunaijun.blackbox.security.SdkProtectionManager;
 
 import top.niunaijun.blackbox.fake.service.HCallbackProxy;
 import top.niunaijun.blackbox.fake.service.IAccessibilityManagerProxy;
@@ -106,6 +107,14 @@ public class HookManager {
     }
 
     public void init() {
+        // ===== SDK PROTECTION HOOKS INIT =====
+        try {
+            SdkProtectionManager.getInstance().setEnabled(true);
+            Slog.i(TAG, "SDK protection hooks initialized");
+        } catch (Exception e) {
+            Slog.w(TAG, "SDK protection hooks init failed: " + e.getMessage());
+        }
+        // =====================================
         if (BlackBoxCore.get().isBlackProcess() || BlackBoxCore.get().isServerProcess()) {
             addInjector(new IDisplayManagerProxy());
             addInjector(new OsStub());
