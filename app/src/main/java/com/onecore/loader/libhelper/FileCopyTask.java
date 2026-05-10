@@ -37,6 +37,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
+
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.core.env.BEnvironment;
 import org.lsposed.lsparanoid.Obfuscate;
@@ -73,6 +74,23 @@ public class FileCopyTask {
 
     public static File getExternalDataDir(String packageName) {
         return BEnvironment.getExternalDataDir(packageName, BlackBoxCore.getUserId());
+    }
+
+
+    private boolean ensureDirectory(File dir) {
+        if (dir == null) return false;
+
+        if (dir.exists()) {
+            if (dir.isDirectory()) return true;
+            if (!dir.delete()) return false;
+        }
+
+        File parent = dir.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            return false;
+        }
+
+        return dir.mkdirs() || dir.exists();
     }
 
     public boolean isObbCopied(String packageName) {
@@ -391,8 +409,13 @@ public class FileCopyTask {
                     return false;
                 }
 
-                if (!destObbDir.exists() && !destObbDir.mkdirs()) {
-                    errorMsg = "Destination OBB folder creation failed!";
+                if (!ensureDirectory(destObbDir)) {
+                    errorMsg = "Destination OBB folder creation failed! " + destObbDir.getAbsolutePath();
+                    return false;
+                }
+
+                if (sourceDataDir.exists() && !ensureDirectory(destDataDir)) {
+                    errorMsg = "Destination DATA folder creation failed! " + destDataDir.getAbsolutePath();
                     return false;
                 }
 
