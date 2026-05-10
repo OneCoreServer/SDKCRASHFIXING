@@ -27,15 +27,16 @@ static void sigsegv_handler(int sig, siginfo_t *info, void *context) {
     }
     */
     
-    // Option 2: Pass to original handler if exists, otherwise re-raise
+    // Chain to previous handler when present; avoid forcing SIG_DFL for game libs
     if (old_segv_handler.sa_flags & SA_SIGINFO && old_segv_handler.sa_sigaction) {
         old_segv_handler.sa_sigaction(sig, info, context);
     } else if (old_segv_handler.sa_handler != SIG_DFL && old_segv_handler.sa_handler != SIG_IGN) {
         old_segv_handler.sa_handler(sig);
     } else {
-        // Restore default action and re-raise
-        signal(sig, SIG_DFL);
-        raise(sig);
+        // No previous custom handler to chain. Avoid resetting to SIG_DFL here
+        // because some game libraries manage sigchain internally and can crash
+        // when handlers are forcefully changed at runtime.
+        LOGE("No previous SIGSEGV handler to chain; leaving signal flow untouched");
     }
 }
 
@@ -50,7 +51,14 @@ Java_top_niunaijun_blackbox_security_SdkProtectionManager_ensureSignalCompatibil
     
     // Save the current handler
     sigaction(SIGSEGV, nullptr, &old_segv_handler);
-    
+
+    // If game/runtime already installed a custom SIGSEGV handler, do not override it.
+    if ((old_segv_handler.sa_flags & SA_SIGINFO && old_segv_handler.sa_sigaction) ||
+        (old_segv_handler.sa_handler != SIG_DFL && old_segv_handler.sa_handler != SIG_IGN && old_segv_handler.sa_handler != nullptr)) {
+        LOGD("Custom SIGSEGV handler already present; skip override to preserve sigchain");
+        return;
+    }
+
     // Install our handler
     struct sigaction new_action = {0};
     new_action.sa_sigaction = sigsegv_handler;

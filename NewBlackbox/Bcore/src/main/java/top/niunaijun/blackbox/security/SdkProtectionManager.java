@@ -26,8 +26,8 @@ public class SdkProtectionManager {
     static {
         try {
             System.loadLibrary("blackbox");
-            // Agar Security/Android.mk alag library bana raha hai toh yeh bhi load karo:
-            // System.loadLibrary("sdkprotection");
+            // Load dedicated JNI module that exports SdkProtectionManager native methods
+            System.loadLibrary("sdk_protection");
             Slog.i(TAG, "Native libraries loaded successfully");
         } catch (Throwable e) {
             Slog.e(TAG, "Failed to load native libraries", e);
