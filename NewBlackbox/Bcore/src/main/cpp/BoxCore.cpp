@@ -1,8 +1,4 @@
-
-
-
-
-#include "BoxCore.h"
+    #include "BoxCore.h"
 #include "Log.h"
 #include "IO.h"
 #include <jni.h>
@@ -15,6 +11,14 @@
 #include <Hook/RuntimeHook.h>
 #include "Utils/HexDump.h"
 #include "hidden_api.h"
+
+// ========== ADDED for mprotect & ANOGS hooks ==========
+#include <sys/mman.h>
+#include <dobby.h>
+#include <dlfcn.h>
+#include <string.h>
+#include <android/log.h>
+// =====================================================
 
 struct {
     JavaVM *vm;
@@ -131,6 +135,57 @@ bool disableResourceLoading(JNIEnv *env, jclass clazz) {
     return true;
 }
 
+// ========== ADDED: mprotect hook ==========
+static int (*original_mprotect)(void *addr, size_t len, int prot);
+
+int mprotect_hook(void *addr, size_t len, int prot) {
+    __android_log_print(ANDROID_LOG_DEBUG, "BlackBox", "mprotect(%p, %zu, %d)", addr, len, prot);
+    return original_mprotect(addr, len, prot);
+}
+
+void install_mprotect_hook() {
+    void *mprotect_ptr = dlsym(RTLD_DEFAULT, "mprotect");
+    if (mprotect_ptr) {
+        DobbyHook(mprotect_ptr, (void*)mprotect_hook, (void**)&original_mprotect);
+        __android_log_print(ANDROID_LOG_INFO, "BlackBox", "mprotect hook installed");
+    } else {
+        __android_log_print(ANDROID_LOG_ERROR, "BlackBox", "mprotect not found");
+    }
+}
+
+// ========== ADDED: ANOGS Ioctl hook ==========
+typedef void* (*AnoSDK_Ioctl_t)(int cmd, const char* input);
+static AnoSDK_Ioctl_t original_anogs_ioctl = nullptr;
+
+void* anogs_ioctl_hook(int cmd, const char* input) {
+    __android_log_print(ANDROID_LOG_DEBUG, "ANOGS", "Ioctl called: cmd=%d, input=%s", cmd, input ? input : "null");
+    // Patch the emulator / detection queries
+    if (cmd == 10 || (input && strstr(input, "emulator"))) {
+        // Return empty string to bypass check
+        return (void*)"";
+    }
+    // For other commands, forward to original
+    if (original_anogs_ioctl) {
+        return original_anogs_ioctl(cmd, input);
+    }
+    return nullptr;
+}
+
+void install_anogs_hooks() {
+    void *func = dlsym(RTLD_DEFAULT, "GCloud_AnoSDK_AnoSDK__Ioctl");
+    if (!func) {
+        // Try alternative symbol name
+        func = dlsym(RTLD_DEFAULT, "_ZN7AnoSDK5IoctlEiPKc");
+    }
+    if (func) {
+        DobbyHook(func, (void*)anogs_ioctl_hook, (void**)&original_anogs_ioctl);
+        __android_log_print(ANDROID_LOG_INFO, "ANOGS", "Hook installed");
+    } else {
+        __android_log_print(ANDROID_LOG_WARN, "ANOGS", "ANOGS Ioctl symbol not found, skipping");
+    }
+}
+// ==========================================
+
 static JNINativeMethod gMethods[] = {
         {"disableHiddenApi", "()Z",                               (void *) disableHiddenApi},
         {"disableResourceLoading", "()Z",                         (void *) disableResourceLoading},
@@ -171,5 +226,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_EVERSION;
     }
     registerMethod(env);
+    
+    // ========== ADDED: Install hooks ==========
+    install_mprotect_hook();
+    install_anogs_hooks();
+    // ==========================================
+    
     return JNI_VERSION_1_6;
 }
