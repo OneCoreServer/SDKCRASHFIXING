@@ -1,12 +1,14 @@
 #include <android/log.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/ptrace.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
 #include <stdarg.h>
+#include <dlfcn.h>
 #include "Dobby/dobby.h"
 #include "xdl.h"
 
@@ -127,7 +129,7 @@ static bool is_blocked_package(const char* path) {
     return false;
 }
 
-// Original function pointers
+// Original function pointers for file hooks
 static int (*orig_access)(const char *pathname, int mode) = nullptr;
 static int (*orig_stat)(const char *pathname, struct stat *buf) = nullptr;
 static int (*orig_lstat)(const char *pathname, struct stat *buf) = nullptr;
@@ -136,6 +138,9 @@ static int (*orig_open)(const char *pathname, int flags, ...) = nullptr;
 static ssize_t (*orig_readlink)(const char *pathname, char *buf, size_t bufsiz) = nullptr;
 static DIR* (*orig_opendir)(const char *name) = nullptr;
 
+// Original ptrace function pointer
+static long (*orig_ptrace)(int request, pid_t pid, void *addr, void *data) = nullptr;
+
 static bool is_safe_path(const char* path) {
     if (!path) return false;
     if (strstr(path, "/proc/net/")) return true;
@@ -143,7 +148,7 @@ static bool is_safe_path(const char* path) {
     return false;
 }
 
-// Hook implementations
+// Hook implementations for file functions
 static int my_access(const char *pathname, int mode) {
     if (pathname && !is_safe_path(pathname) && (is_blocked_file(pathname) || is_blocked_package(pathname))) {
         errno = ENOENT;
@@ -211,6 +216,18 @@ static DIR* my_opendir(const char *name) {
     return orig_opendir ? orig_opendir(name) : nullptr;
 }
 
+// Ptrace hook implementation
+static long my_ptrace(int request, pid_t pid, void *addr, void *data) {
+    if (request == PTRACE_TRACEME) {
+        LOGD("Bypassing ptrace(PTRACE_TRACEME, ...)");
+        return 0;  // Always success
+    }
+    if (orig_ptrace) {
+        return orig_ptrace(request, pid, addr, data);
+    }
+    return -1;
+}
+
 // Helper to get symbol address using xdl
 static void* get_sym(const char* lib, const char* sym) {
     void* handle = xdl_open(lib, XDL_DEFAULT);
@@ -221,7 +238,7 @@ static void* get_sym(const char* lib, const char* sym) {
 }
 
 static void install_file_hooks() {
-    LOGD("Installing actual file system hooks...");
+    LOGD("Installing file system hooks...");
 
     // Get original libc addresses
     orig_access = (int (*)(const char*, int)) get_sym("libc.so", "access");
@@ -244,8 +261,21 @@ static void install_file_hooks() {
     LOGD("File system hooks installed successfully");
 }
 
+static void install_ptrace_hook() {
+    void* ptrace_addr = dlsym(RTLD_DEFAULT, "ptrace");
+    if (ptrace_addr) {
+        // Save original and hook
+        orig_ptrace = (long (*)(int, pid_t, void*, void*)) ptrace_addr;
+        DobbyHook(ptrace_addr, (void*)my_ptrace, (void**)&orig_ptrace);
+        LOGD("ptrace hook installed successfully");
+    } else {
+        LOGE("Failed to find ptrace symbol");
+    }
+}
+
 __attribute__((constructor)) void install_antidetection_hooks() {
     LOGD("Installing anti-detection hooks...");
-    install_file_hooks(); 
+    install_file_hooks();
+    install_ptrace_hook();
     LOGD("Anti-detection hooks installation complete");
 }
