@@ -22,6 +22,18 @@ public class SdkProtectionManager {
     private static SdkProtectionManager sInstance;
     private boolean mEnabled;
 
+    // 🔥 NATIVE LIBRARY LOAD KARO 🔥
+    static {
+        try {
+            System.loadLibrary("blackbox");
+            // Agar Security/Android.mk alag library bana raha hai toh yeh bhi load karo:
+            // System.loadLibrary("sdkprotection");
+            Slog.i(TAG, "Native libraries loaded successfully");
+        } catch (Throwable e) {
+            Slog.e(TAG, "Failed to load native libraries", e);
+        }
+    }
+
     public static synchronized SdkProtectionManager getInstance() {
         if (sInstance == null) sInstance = new SdkProtectionManager();
         return sInstance;
