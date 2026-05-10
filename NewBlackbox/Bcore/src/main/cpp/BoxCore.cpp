@@ -12,15 +12,17 @@
 #include "Utils/HexDump.h"
 #include "hidden_api.h"
 
-// ========== ADDED for mprotect & ANOGS hooks (safe, delayed) ==========
+// ========== ADDED for safe delayed hooks ==========
 #include <sys/mman.h>
+#include <spawn.h>
 #include <dobby.h>
 #include <dlfcn.h>
 #include <string.h>
 #include <thread>
 #include <chrono>
+#include <errno.h>
 #include <android/log.h>
-// =====================================================
+// =================================================
 
 struct {
     JavaVM *vm;
@@ -128,7 +130,7 @@ bool disableResourceLoading(JNIEnv *env, jclass clazz) {
     return true;
 }
 
-// ========== ADDED: Safe mprotect hook ==========
+// ========== HOOK: mprotect ==========
 static int (*original_mprotect)(void *addr, size_t len, int prot) = nullptr;
 
 int mprotect_hook(void *addr, size_t len, int prot) {
@@ -154,13 +156,14 @@ void install_mprotect_hook() {
     }
 }
 
-// ========== ADDED: ANOGS Ioctl hook ==========
+// ========== HOOK: ANOGS Ioctl ==========
 typedef void* (*AnoSDK_Ioctl_t)(int cmd, const char* input);
 static AnoSDK_Ioctl_t original_anogs_ioctl = nullptr;
 
 void* anogs_ioctl_hook(int cmd, const char* input) {
     // Patch the emulator detection (cmd 10)
     if (cmd == 10) {
+        __android_log_print(ANDROID_LOG_DEBUG, "ANOGS", "Patched cmd=10, returning empty");
         return (void*)"";
     }
     if (original_anogs_ioctl) {
@@ -182,6 +185,34 @@ void install_anogs_hooks() {
         __android_log_print(ANDROID_LOG_WARN, "BlackBox", "ANOGS symbol not found, skipping");
     }
 }
+
+// ========== HOOK: posix_spawn (direct crash fix) ==========
+static int (*original_posix_spawn)(pid_t *pid, const char *path,
+                                   const posix_spawn_file_actions_t *file_actions,
+                                   const posix_spawnattr_t *attrp,
+                                   char *const argv[], char *const envp[]) = nullptr;
+
+int posix_spawn_hook(pid_t *pid, const char *path,
+                     const posix_spawn_file_actions_t *file_actions,
+                     const posix_spawnattr_t *attrp,
+                     char *const argv[], char *const envp[]) {
+    __android_log_print(ANDROID_LOG_DEBUG, "BlackBox", "posix_spawn blocked: %s", path ? path : "(null)");
+    errno = EPERM;
+    return -1;
+}
+
+void install_posix_spawn_hook() {
+    void *ptr = dlsym(RTLD_DEFAULT, "posix_spawn");
+    if (ptr) {
+        if (DobbyHook(ptr, (void*)posix_spawn_hook, (void**)&original_posix_spawn) == 0) {
+            __android_log_print(ANDROID_LOG_INFO, "BlackBox", "posix_spawn hook installed (delayed)");
+        } else {
+            __android_log_print(ANDROID_LOG_WARN, "BlackBox", "posix_spawn hook failed");
+        }
+    } else {
+        __android_log_print(ANDROID_LOG_WARN, "BlackBox", "posix_spawn not found");
+    }
+}
 // ==========================================
 
 void enableIO(JNIEnv *env, jclass clazz) {
@@ -194,6 +225,7 @@ void enableIO(JNIEnv *env, jclass clazz) {
         std::this_thread::sleep_for(std::chrono::seconds(2));
         install_mprotect_hook();
         install_anogs_hooks();
+        install_posix_spawn_hook();
     }).detach();
 }
 
