@@ -14,7 +14,7 @@
 
 // ========== ADDED for mprotect & ANOGS hooks ==========
 #include <sys/mman.h>
-#include <dobby.h>
+#include "Dobby/dobby.h"
 #include <dlfcn.h>
 #include <string.h>
 #include <android/log.h>
