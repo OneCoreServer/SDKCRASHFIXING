@@ -71,7 +71,10 @@ import top.niunaijun.blackbox.utils.StoragePermissionHelper;
 import top.niunaijun.blackbox.utils.LogSender;
 // ===== NAYA IMPORT =====
 import top.niunaijun.blackbox.game.GameProtectionManager;
-// =====================
+// ===== NAYA IMPORTS =====
+import top.niunaijun.blackbox.security.SdkProtectionManager;
+import top.niunaijun.blackbox.security.GameIntegrityGuard;
+// ========================
 
 @SuppressLint({"StaticFieldLeak", "NewApi"})
 @SuppressWarnings({"unchecked", "deprecation"})
@@ -1021,6 +1024,15 @@ public class BlackBoxCore extends ClientConfiguration {
         
         installSystemHooks();
         
+        // ===== SDK PROTECTION INIT =====
+        try {
+            SdkProtectionManager.getInstance().initialize(sContext);
+            SdkProtectionManager.getInstance().setEnabled(true);
+            Slog.i(TAG, "SDK Protection initialized and enabled");
+        } catch (Exception e) {
+            Slog.w(TAG, "SDK Protection init failed: " + e.getMessage());
+        }
+        // ================================
         
         long startTime = System.currentTimeMillis();
         long maxInitTime = 10000; 
@@ -1153,6 +1165,13 @@ public class BlackBoxCore extends ClientConfiguration {
     public boolean launchApk(String packageName, int userId) {
         onBeforeMainLaunchApk(packageName, userId);
         
+        // ===== SDK PROTECTION FOR GAMES =====
+        if (GameProtectionManager.getInstance().isGame(packageName)) {
+            SdkProtectionManager.getInstance().onGameLaunch(packageName);
+            GameIntegrityGuard.getInstance().startMonitoring(packageName);
+            Slog.i(TAG, "SDK Protection activated for game: " + packageName);
+        }
+        // =====================================
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!hasAllFilesAccess()) {
@@ -1219,7 +1238,9 @@ public class BlackBoxCore extends ClientConfiguration {
             Slog.w(TAG, "Could not verify package info for APK: " + apk.getAbsolutePath());
         }
         
-        return getBPackageManager().installPackageAsUser(apk.getAbsolutePath(), InstallOption.installByStorage(), userId);
+        InstallResult result = getBPackageManager().installPackageAsUser(apk.getAbsolutePath(), InstallOption.installByStorage(), userId);
+        
+        return result;
     }
 
     public InstallResult installPackageAsUser(Uri apk, int userId) {

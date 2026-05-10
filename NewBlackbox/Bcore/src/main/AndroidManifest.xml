@@ -414,7 +414,8 @@
     
 
     <application
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:extractNativeLibs="true">
         <provider
             android:name="top.niunaijun.blackbox.core.system.SystemCallProvider"
             android:authorities="${applicationId}.blackbox.SystemCallProvider"
