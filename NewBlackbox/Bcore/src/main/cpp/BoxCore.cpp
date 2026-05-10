@@ -1,4 +1,4 @@
-    #include "BoxCore.h"
+#include "BoxCore.h"
 #include "Log.h"
 #include "IO.h"
 #include <jni.h>
@@ -12,11 +12,13 @@
 #include "Utils/HexDump.h"
 #include "hidden_api.h"
 
-// ========== ADDED for mprotect & ANOGS hooks ==========
+// ========== ADDED for mprotect & ANOGS hooks (safe, delayed) ==========
 #include <sys/mman.h>
 #include <dobby.h>
 #include <dlfcn.h>
 #include <string.h>
+#include <thread>
+#include <chrono>
 #include <android/log.h>
 // =====================================================
 
@@ -30,7 +32,6 @@ struct {
     jmethodID loadEmptyDexL;
     int api_level;
 } VMEnv;
-
 
 JNIEnv *getEnv() {
     JNIEnv *env;
@@ -79,7 +80,6 @@ void nativeHook(JNIEnv *env) {
     UnixFileSystemHook::init(env);
     FileSystemHook::init();
     VMClassLoaderHook::init(env);
-
     BinderHook::init(env);
     DexFileHook::init(env);
 }
@@ -100,7 +100,6 @@ void init(JNIEnv *env, jobject clazz, jint api_level) {
                                                     "(Ljava/io/File;)Ljava/io/File;");
     VMEnv.loadEmptyDex = env->GetStaticMethodID(VMEnv.NativeCoreClass, "loadEmptyDex",
                                                 "()[J");
-
     JniHook::InitJniHook(env, api_level);
 }
 
@@ -109,12 +108,6 @@ void addIORule(JNIEnv *env, jclass clazz, jstring target_path,
     ALOGD("set addIORule");
     IO::addRule(env->GetStringUTFChars(target_path, JNI_FALSE),
                 env->GetStringUTFChars(relocate_path, JNI_FALSE));
-}
-
-void enableIO(JNIEnv *env, jclass clazz) {
-    ALOGD("set enableIO");
-    IO::init(env);
-    nativeHook(env);
 }
 
 bool disableHiddenApi(JNIEnv *env, jclass clazz) {
@@ -135,21 +128,29 @@ bool disableResourceLoading(JNIEnv *env, jclass clazz) {
     return true;
 }
 
-// ========== ADDED: mprotect hook ==========
-static int (*original_mprotect)(void *addr, size_t len, int prot);
+// ========== ADDED: Safe mprotect hook ==========
+static int (*original_mprotect)(void *addr, size_t len, int prot) = nullptr;
 
 int mprotect_hook(void *addr, size_t len, int prot) {
-    __android_log_print(ANDROID_LOG_DEBUG, "BlackBox", "mprotect(%p, %zu, %d)", addr, len, prot);
-    return original_mprotect(addr, len, prot);
+    // Just pass through – no interference
+    if (original_mprotect) {
+        return original_mprotect(addr, len, prot);
+    }
+    // Fallback
+    static int (*real_mprotect)(void*, size_t, int) = nullptr;
+    if (!real_mprotect) real_mprotect = (int(*)(void*,size_t,int))dlsym(RTLD_DEFAULT, "mprotect");
+    if (real_mprotect) return real_mprotect(addr, len, prot);
+    return -1;
 }
 
 void install_mprotect_hook() {
     void *mprotect_ptr = dlsym(RTLD_DEFAULT, "mprotect");
     if (mprotect_ptr) {
-        DobbyHook(mprotect_ptr, (void*)mprotect_hook, (void**)&original_mprotect);
-        __android_log_print(ANDROID_LOG_INFO, "BlackBox", "mprotect hook installed");
-    } else {
-        __android_log_print(ANDROID_LOG_ERROR, "BlackBox", "mprotect not found");
+        if (DobbyHook(mprotect_ptr, (void*)mprotect_hook, (void**)&original_mprotect) == 0) {
+            __android_log_print(ANDROID_LOG_INFO, "BlackBox", "mprotect hook installed (delayed)");
+        } else {
+            __android_log_print(ANDROID_LOG_WARN, "BlackBox", "mprotect hook failed");
+        }
     }
 }
 
@@ -158,13 +159,10 @@ typedef void* (*AnoSDK_Ioctl_t)(int cmd, const char* input);
 static AnoSDK_Ioctl_t original_anogs_ioctl = nullptr;
 
 void* anogs_ioctl_hook(int cmd, const char* input) {
-    __android_log_print(ANDROID_LOG_DEBUG, "ANOGS", "Ioctl called: cmd=%d, input=%s", cmd, input ? input : "null");
-    // Patch the emulator / detection queries
-    if (cmd == 10 || (input && strstr(input, "emulator"))) {
-        // Return empty string to bypass check
+    // Patch the emulator detection (cmd 10)
+    if (cmd == 10) {
         return (void*)"";
     }
-    // For other commands, forward to original
     if (original_anogs_ioctl) {
         return original_anogs_ioctl(cmd, input);
     }
@@ -173,18 +171,31 @@ void* anogs_ioctl_hook(int cmd, const char* input) {
 
 void install_anogs_hooks() {
     void *func = dlsym(RTLD_DEFAULT, "GCloud_AnoSDK_AnoSDK__Ioctl");
-    if (!func) {
-        // Try alternative symbol name
-        func = dlsym(RTLD_DEFAULT, "_ZN7AnoSDK5IoctlEiPKc");
-    }
+    if (!func) func = dlsym(RTLD_DEFAULT, "_ZN7AnoSDK5IoctlEiPKc");
     if (func) {
-        DobbyHook(func, (void*)anogs_ioctl_hook, (void**)&original_anogs_ioctl);
-        __android_log_print(ANDROID_LOG_INFO, "ANOGS", "Hook installed");
+        if (DobbyHook(func, (void*)anogs_ioctl_hook, (void**)&original_anogs_ioctl) == 0) {
+            __android_log_print(ANDROID_LOG_INFO, "BlackBox", "ANOGS Ioctl hook installed (delayed)");
+        } else {
+            __android_log_print(ANDROID_LOG_WARN, "BlackBox", "ANOGS hook failed");
+        }
     } else {
-        __android_log_print(ANDROID_LOG_WARN, "ANOGS", "ANOGS Ioctl symbol not found, skipping");
+        __android_log_print(ANDROID_LOG_WARN, "BlackBox", "ANOGS symbol not found, skipping");
     }
 }
 // ==========================================
+
+void enableIO(JNIEnv *env, jclass clazz) {
+    ALOGD("set enableIO");
+    IO::init(env);
+    nativeHook(env);
+    
+    // ===== DELAYED HOOK INSTALLATION (safety) =====
+    std::thread([](){
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        install_mprotect_hook();
+        install_anogs_hooks();
+    }).detach();
+}
 
 static JNINativeMethod gMethods[] = {
         {"disableHiddenApi", "()Z",                               (void *) disableHiddenApi},
@@ -226,11 +237,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_EVERSION;
     }
     registerMethod(env);
-    
-    // ========== ADDED: Install hooks ==========
-    install_mprotect_hook();
-    install_anogs_hooks();
-    // ==========================================
-    
+    // No hooks here – clean startup
     return JNI_VERSION_1_6;
 }
