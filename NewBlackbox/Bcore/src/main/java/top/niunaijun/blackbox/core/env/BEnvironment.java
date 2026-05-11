@@ -72,7 +72,12 @@ public class BEnvironment {
     }
 
     public static File getExternalUserDir(int userId) {
-        return new File(sExternalVirtualRoot, String.format(Locale.CHINA, "storage/emulated/%d/", userId));
+        // Keep virtual external root inside app-scoped storage.
+        // Avoid embedding absolute-like "storage/emulated/..." segments because they
+        // create fragile nested paths such as:
+        // /storage/emulated/0/Android/data/<pkg>/files/blackbox/storage/emulated/0/...
+        // which are prone to collisions and mkdir failures on some devices.
+        return new File(sExternalVirtualRoot, String.format(Locale.CHINA, "user/%d/", userId));
     }
 
     public static File getUserDir(int userId) {

@@ -178,6 +178,10 @@ import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
             File appRootDir = BEnvironment.getAppRootDir();
             FileUtils.mkdirs(appRootDir);
             File[] apps = appRootDir.listFiles();
+            if (apps == null) {
+                Slog.w(TAG, "scanPackage: app root listFiles() returned null: " + appRootDir.getAbsolutePath());
+                return;
+            }
             for (File app : apps) {
                 if (!app.isDirectory()) {
                     continue;
