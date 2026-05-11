@@ -80,17 +80,29 @@ public class FileCopyTask {
     private boolean ensureDirectory(File dir) {
         if (dir == null) return false;
 
-        if (dir.exists()) {
-            if (dir.isDirectory()) return true;
-            if (!dir.delete()) return false;
+        File cursor = dir;
+        java.util.ArrayList<File> chain = new java.util.ArrayList<>();
+        while (cursor != null) {
+            chain.add(0, cursor);
+            cursor = cursor.getParentFile();
         }
 
-        File parent = dir.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            return false;
+        for (File level : chain) {
+            if (level.exists()) {
+                if (level.isDirectory()) {
+                    continue;
+                }
+                if (!level.delete()) {
+                    return false;
+                }
+            }
+
+            if (!level.exists() && !level.mkdir()) {
+                return false;
+            }
         }
 
-        return dir.mkdirs() || dir.exists();
+        return dir.exists() && dir.isDirectory();
     }
 
     public boolean isObbCopied(String packageName) {
