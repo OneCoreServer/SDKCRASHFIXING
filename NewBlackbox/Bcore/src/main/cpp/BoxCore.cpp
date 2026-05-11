@@ -196,8 +196,10 @@ int posix_spawn_hook(pid_t *pid, const char *path,
                      const posix_spawn_file_actions_t *file_actions,
                      const posix_spawnattr_t *attrp,
                      char *const argv[], char *const envp[]) {
-    __android_log_print(ANDROID_LOG_DEBUG, "BlackBox", "posix_spawn blocked: %s", path ? path : "(null)");
-    errno = EPERM;
+    if (original_posix_spawn) {
+        return original_posix_spawn(pid, path, file_actions, attrp, argv, envp);
+    }
+    errno = ENOSYS;
     return -1;
 }
 
@@ -225,7 +227,7 @@ void enableIO(JNIEnv *env, jclass clazz) {
         std::this_thread::sleep_for(std::chrono::seconds(2));
         install_mprotect_hook();
         install_anogs_hooks();
-        install_posix_spawn_hook();
+        // Avoid global posix_spawn interception; it conflicts with ART/libsigchain in game libs.
     }).detach();
 }
 
